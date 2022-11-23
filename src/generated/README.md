@@ -1,0 +1,1 @@
+This directory will contain files generated from PIO sources and auto_version.cmake.
