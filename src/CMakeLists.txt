@@ -12,13 +12,27 @@ add_custom_command(
 
 add_executable(robot_arm)
 add_dependencies(robot_arm pre_build_version_update)
-target_sources(robot_arm PRIVATE robot_arm.c devices/PCA9685.c devices/arducam.c motion_control/ik_calculations.c)
+target_sources(robot_arm PRIVATE 
+    robot_arm.c
+    devices/PCA9685.c
+    devices/arducam.c
+    motion_control/ik_calculations.c
+)
 
 #example PIO header generation
 #pico_generate_pio_header(robot_arm ${CMAKE_CURRENT_LIST_DIR}/devices/camera.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated) # PICO SDK (PIO)
 
-target_include_directories(robot_arm PRIVATE ${CMAKE_CURRENT_LIST_DIR}/devices/include ${CMAKE_CURRENT_LIST_DIR}/motion_control/include ${CMAKE_CURRENT_LIST_DIR}/generated)
-target_link_libraries(robot_arm PRIVATE pico_stdlib hardware_pio hardware_dma)
+target_include_directories(robot_arm PRIVATE 
+    ${CMAKE_CURRENT_LIST_DIR}/devices/include/.
+    ${CMAKE_CURRENT_LIST_DIR}/motion_control/include/.
+    ${CMAKE_CURRENT_LIST_DIR}/generated/.
+)
+target_link_libraries(robot_arm PRIVATE 
+    pico_stdlib
+    hardware_pio
+    hardware_dma
+)
+
 pico_add_extra_outputs(robot_arm)
 
 pico_enable_stdio_usb(robot_arm 1)
