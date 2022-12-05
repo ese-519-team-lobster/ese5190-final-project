@@ -9,14 +9,16 @@ add_custom_command(
         -P "${ESE5190_FINALPROJ_DIR}/auto_version.cmake"
 )
 
-
+set(PARAM_ASSERTIONS_ENABLE_ALL 1)
 add_executable(robot_arm)
 add_dependencies(robot_arm pre_build_version_update)
 target_sources(robot_arm PRIVATE 
     robot_arm.c
     devices/PCA9685.c
     devices/arducam.c
+    devices/joystick.c
     motion_control/ik_calculations.c
+    motion_control/joint_control.c
 )
 
 #example PIO header generation
@@ -31,6 +33,8 @@ target_link_libraries(robot_arm PRIVATE
     pico_stdlib
     hardware_pio
     hardware_dma
+    hardware_i2c
+    hardware_adc
 )
 
 pico_add_extra_outputs(robot_arm)

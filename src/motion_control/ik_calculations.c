@@ -31,14 +31,18 @@ bool angle_valid(Link * L, double angle) {
     return (angle >= L->min_angle) && (angle <= L->max_angle);
 }
 
-void init_chain(Chain * C, Link base, Link shoulder, Link elbow, Link wrist_bend, Link wrist_rotate) {
+void init_chain(Chain * C, Link * base, Link * shoulder, Link * elbow, Link * wrist_bend, Link * wrist_rotate) {
     C->base_rotation = base;
     C->shoulder = shoulder;
     C->elbow = elbow;
     C->wrist_bend = wrist_bend;
     C->wrist_rotate =  wrist_rotate;
     C->current_phi = 0.0;
-    printf("base: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf\n", rad2deg(C->base_rotation.angle), rad2deg(C->shoulder.angle), rad2deg(C->elbow.angle), rad2deg(C->wrist_bend.angle));
+    printf("base: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf\n", 
+		rad2deg(C->base_rotation->angle), 
+		rad2deg(C->shoulder->angle), 
+		rad2deg(C->elbow->angle), 
+		rad2deg(C->wrist_bend->angle));
 
 }
 
@@ -66,8 +70,8 @@ static bool solve_fixed(Chain * C, double x, double y, double phi, double * shou
 	double _phi = phi - HALF_PI;
 	
 	// Find the coordinate for the wrist
-	double xw = _x - C->wrist_bend.length * cos(_phi);
-	double yw = _y - C->wrist_bend.length * sin(_phi);
+	double xw = _x - C->wrist_bend->length * cos(_phi);
+	double yw = _y - C->wrist_bend->length * sin(_phi);
 	
 	// Get polar system
 	double alpha = atan2(yw, xw);
@@ -75,11 +79,11 @@ static bool solve_fixed(Chain * C, double x, double y, double phi, double * shou
 	
 	// Calculate the inner angle of the shoulder
 	double beta;
-	if(!cosine_rule(C->elbow.length, R, C->shoulder.length, &beta)) return false;
+	if(!cosine_rule(C->elbow->length, R, C->shoulder->length, &beta)) return false;
 	
 	// Calcula the inner angle of the elbow
 	double gamma;
-	if(!cosine_rule(R, C->shoulder.length, C->elbow.length, &gamma)) return false;
+	if(!cosine_rule(R, C->shoulder->length, C->elbow->length, &gamma)) return false;
 	
 	// Solve the angles of the arm
 	double _shoulder, _elbow, _wrist;
@@ -88,14 +92,14 @@ static bool solve_fixed(Chain * C, double x, double y, double phi, double * shou
 	_wrist = _phi - _shoulder - _elbow;
 	
 	// Check the range of each hinge
-	if (!angle_valid(&C->shoulder, _shoulder) || !angle_valid(&C->elbow, _elbow) || !angle_valid(&C->wrist_bend, _wrist)) {
+	if (!angle_valid(C->shoulder, _shoulder) || !angle_valid(C->elbow, _elbow) || !angle_valid(C->wrist_bend, _wrist)) {
 		// If not in range, solve for the second solution
 		_shoulder += 2 * beta;
 		_elbow *= -1;
 		_wrist = _phi - _shoulder - _elbow;
 		
 		// Check the range for the second solution
-		if (!angle_valid(&C->shoulder, _shoulder) || !angle_valid(&C->elbow, _elbow) || !angle_valid(&C->wrist_bend, _wrist)) return false;
+		if (!angle_valid(C->shoulder, _shoulder) || !angle_valid(C->elbow, _elbow) || !angle_valid(C->wrist_bend, _wrist)) return false;
 	}
 	
 	// Return the solution
@@ -127,7 +131,7 @@ bool solve_ik(Chain * C, double x, double y, double z, double * base, double * s
 	double _base = atan2(y, x);
 	
 	// Check the range of the base
-	if (!angle_valid(&C->base_rotation, _base)) {
+	if (!angle_valid(C->base_rotation, _base)) {
 		// If not in range, flip the angle
 		_base += (_base < 0) ? PI : -PI;
 		_r *= -1;
@@ -138,13 +142,29 @@ bool solve_ik(Chain * C, double x, double y, double z, double * base, double * s
 	
 	// Solve XY (RZ) for the arm plane
 	if (phi == FREE_ANGLE) {
-		if (!solve_free(C, _r, z - C->base_rotation.length, shoulder, elbow, wrist)) return false;
+		if (!solve_free(C, _r, z - C->base_rotation->length, shoulder, elbow, wrist)) return false;
 	} else {
-		if (!solve_fixed(C, _r, z - C->base_rotation.length, phi, shoulder, elbow, wrist)) return false;
+		if (!solve_fixed(C, _r, z - C->base_rotation->length, phi, shoulder, elbow, wrist)) return false;
 	}
 	
 	// If there is a solution, return the angles
 	*base = _base;
 	
 	return true;
+}
+
+// Solve the angles for XYZ with or without a fixed attack angle. Pass FREE_ANGLE for no attack angle.
+// Store the result directly in the provided Chain instead of individual doubles.
+bool solve_ik_direct(Chain * C, double x, double y, double z, double phi) {
+	double base, shoulder, elbow, wrist;
+    if (solve_ik(C, x, y, z, &base, &shoulder, &elbow, &wrist, phi)) {
+		C->base_rotation->angle = base;
+		C->shoulder->angle = shoulder;
+		C->elbow->angle = elbow;
+		C->wrist_bend->angle = wrist;
+		return true;
+	}
+	else {
+		return false;
+	}
 }
