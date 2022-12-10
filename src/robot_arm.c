@@ -41,7 +41,7 @@ void commands() {
     
     //joints
     for(int i = 0; i < ARM_JOINT_COUNT; ++i) {
-        printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i]));
+        printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
         setPWM(&pwm_driver, joints[i].servo.channel, 0, angle_to_pwm(&joints[i]));
     }
     //gripper
@@ -81,14 +81,14 @@ void inverse_kinematics() {
         joints[1].kinematic_link.angle = shoulder;
         joints[2].kinematic_link.angle = elbow;
         joints[3].kinematic_link.angle = wrist_bend;
-        // printf("   SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \t", 
-        //     new_pos.x, 
-        //     new_pos.y, 
-        //     new_pos.z, 
-        //     rad2deg(arm_chain.base_rotation->angle), 
-        //     rad2deg(arm_chain.shoulder->angle), 
-        //     rad2deg(arm_chain.elbow->angle), 
-        //     rad2deg(arm_chain.wrist_bend->angle));
+        printf("   SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \t", 
+            new_pos.x, 
+            new_pos.y, 
+            new_pos.z, 
+            rad2deg(arm_chain.base_rotation->angle), 
+            rad2deg(arm_chain.shoulder->angle), 
+            rad2deg(arm_chain.elbow->angle), 
+            rad2deg(arm_chain.wrist_bend->angle));
     }
     else
     {
@@ -110,7 +110,7 @@ void calibrate() {
     uint16_t pwm_mins[ARM_JOINT_COUNT];
     uint16_t pwm_maxs[ARM_JOINT_COUNT];
     uint16_t pwm_curr[ARM_JOINT_COUNT];
-    char input;
+    int input = 0;
     int joint = 0;
 
     uint16_t pwm_val = 550;
@@ -124,6 +124,18 @@ void calibrate() {
     pwm_curr[3] = 200;
     pwm_curr[4] = 310;
 
+    pwm_mins[0] = BASE_ROTATION_MIN_PWM;
+    pwm_mins[1] = SHOULDER_MIN_PWM;
+    pwm_mins[2] = ELBOW_MIN_PWM;
+    pwm_mins[3] = WRIST_BEND_MIN_PWM;
+    pwm_mins[4] = WRIST_ROTATION_MIN_PWM;
+
+    pwm_maxs[0] = BASE_ROTATION_MAX_PWM;
+    pwm_maxs[1] = SHOULDER_MAX_PWM;
+    pwm_maxs[2] = ELBOW_MAX_PWM;
+    pwm_maxs[3] = WRIST_BEND_MAX_PWM;
+    pwm_maxs[4] = WRIST_ROTATION_MAX_PWM;
+
     for (int i = 0; i < ARM_JOINT_COUNT; i++) {
         setPWM(&pwm_driver, joints[i].servo.channel, 0, pwm_curr[i]);
     }
@@ -131,10 +143,14 @@ void calibrate() {
     while(loop) {
 
         setPWM(&pwm_driver, joints[joint].servo.channel, 0, pwm_curr[joint]);
-        printf("setting J%d: %d     \r", joint, pwm_curr[joint]);
+        printf("setting J%d: %d     ", joint, pwm_curr[joint]);
 
-        input = getchar();
-        switch(input) {
+        do{
+        input = getchar_timeout_us(0);
+        //getchar();
+        }while(input == PICO_ERROR_TIMEOUT);
+        //printf("  char got: %c", (char)input);
+        switch((char)input) {
             case 'w':
                 pwm_curr[joint] += 1;
                 break;
@@ -153,11 +169,13 @@ void calibrate() {
             case 'f':
                 pwm_curr[joint] -= 10;
                 break;
-            case 'o':
-                pwm_maxs[joint] = pwm_curr[joint];
-                break;
             case 'p':
+                pwm_maxs[joint] = pwm_curr[joint];
+                printf("max saved!");
+                break;
+            case 'o':
                 pwm_mins[joint] = pwm_curr[joint];
+                printf("min saved!");
                 break;
             case 'n':
                 joint += 1;
@@ -168,11 +186,21 @@ void calibrate() {
             case 'z':
                 loop = false;
                 break;
+            case 'k':
+                pwm_curr[joint] = pwm_mins[joint];
+                break;
+            case 'l':
+                pwm_curr[joint] = pwm_maxs[joint];
+                break;
+            default:
+                break;
         }
-        if (joint > 5) {joint = 5;}
+        //printf("eval'd char");
+        if (joint > 4) {joint = 4;}
         if (joint < 0) {joint = 0;}
-        pwm_curr[joint] = (pwm_curr[joint] > 100 && pwm_curr[joint] < 650) ? pwm_curr[joint] : 500;
+        pwm_curr[joint] = (pwm_curr[joint] > 50 && pwm_curr[joint] < 700) ? pwm_curr[joint] : 300;
         //printf("ch%d-%d,\t", joints[i].servo.channel, pwm_val);
+        printf("\r");
     }
 
     printf("\n");
@@ -235,13 +263,28 @@ void setup() {
         &joints[4].kinematic_link);
 
     //initialize the cartesian position
-    new_pos.x = 150;
-    new_pos.y = 0;
-    new_pos.z = 96.5;
-    new_pos.phi = FREE_ANGLE;
+    new_pos.x = 0;
+    new_pos.y = -170;
+    new_pos.z = 80;
+    new_pos.phi = 0;
 
     //call the IK function to initialize the joint angles, since output function is first in loop
     inverse_kinematics();
+}
+
+void test() {
+    uint8_t regaddr = PCA9685_PRESCALE;
+    uint8_t buf;
+    i2c_write_blocking(pwm_driver.i2c, pwm_driver.addr, &regaddr, 1, true);
+    int ret = i2c_read_blocking(pwm_driver.i2c, pwm_driver.addr, &buf, 1, false);
+    printf("new prescale val: %d\nret: %d\n", buf, ret);
+    buf = pca9685_read_prescale(&pwm_driver);
+    printf("new prescale val2: %d\n", buf);
+    buf = pca9685_read_prescale(&pwm_driver);
+    printf("new prescale val3: %d\n", buf);
+    //setPWM(&pwm_driver, 15, 0, 600);
+    //setPWM(&pwm_driver, 0, 0, 600);
+    //while(1){}
 }
 
 int main() {
@@ -254,6 +297,7 @@ int main() {
     setup();
     printf("oscfreq: %d\n", pwm_driver.oscillator_freq);
     //test function
+    test();
     calibrate();
     //end test code
 

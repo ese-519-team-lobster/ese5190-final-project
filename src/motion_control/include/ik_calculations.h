@@ -23,7 +23,7 @@ typedef struct {
     double length; //distance the structure extends past the joint.
     double min_angle; //
     double max_angle;
-    double angle;
+    double angle; //current angle in radians
 } Link;
 
 typedef struct chain_ {
