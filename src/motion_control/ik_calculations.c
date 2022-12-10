@@ -6,8 +6,9 @@
 
 #include "ik_calculations.h"
 //for debug prints:
+#ifdef DEBUG_OUTPUT
 #include <stdio.h>
-
+#endif
 
 double rad2deg(double rad) {
     return (rad + HALF_PI) * 180 / PI;
@@ -38,12 +39,13 @@ void init_chain(Chain * C, Link * base, Link * shoulder, Link * elbow, Link * wr
     C->wrist_bend = wrist_bend;
     C->wrist_rotate =  wrist_rotate;
     C->current_phi = 0.0;
+	#ifdef DEBUG_OUTPUT
     printf("base: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf\n", 
 		rad2deg(C->base_rotation->angle), 
 		rad2deg(C->shoulder->angle), 
 		rad2deg(C->elbow->angle), 
 		rad2deg(C->wrist_bend->angle));
-
+	#endif
 }
 
 static bool cosine_rule(double opposite, double adjacent1, double adjacent2, double * angle) {

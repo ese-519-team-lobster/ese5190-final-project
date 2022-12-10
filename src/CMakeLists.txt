@@ -15,14 +15,20 @@ add_dependencies(robot_arm pre_build_version_update)
 target_sources(robot_arm PRIVATE 
     robot_arm.c
     devices/PCA9685.c
-    devices/arducam.c
+    devices/lib/arducam.c
     devices/joystick.c
+    devices/lib/fonts.c
+    devices/lib/DEV_Config.c
+    devices/lib/st7735.c
+    devices/point_track.c
     motion_control/ik_calculations.c
     motion_control/joint_control.c
 )
 
 #example PIO header generation
 #pico_generate_pio_header(robot_arm ${CMAKE_CURRENT_LIST_DIR}/devices/camera.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated) # PICO SDK (PIO)
+pico_generate_pio_header(robot_arm ${CMAKE_CURRENT_LIST_DIR}/devices/lib/image.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
+
 
 target_include_directories(robot_arm PRIVATE 
     ${CMAKE_CURRENT_LIST_DIR}/devices/include/.
@@ -35,6 +41,9 @@ target_link_libraries(robot_arm PRIVATE
     hardware_dma
     hardware_i2c
     hardware_adc
+    hardware_pwm
+    hardware_spi
+    pico_multicore
 )
 
 pico_add_extra_outputs(robot_arm)

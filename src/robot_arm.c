@@ -1,6 +1,8 @@
 #include "pico/stdlib.h"
 #include <stdio.h>
 #include "hardware/i2c.h"
+#include "pico/multicore.h"
+#include "hardware/vreg.h"
 
 #include "proj_version.h"
 #include "ik_calculations.h"
@@ -9,6 +11,7 @@
 
 #include "PCA9685.h"
 #include "joystick.h"
+#include "point_track.h"
 
 #define I2C_SDA_PIN 22
 #define I2C_SCL_PIN 23
@@ -18,6 +21,8 @@
 #define PCA9685_OSC_FREQ 26600000 //tuned to the PCA9685 we have on hand
 
 #define ARM_JOINT_COUNT 5
+
+#define DEBUG_OUTPUT
 
 PCA9685 pwm_driver;
 Chain arm_chain;
@@ -41,12 +46,16 @@ void commands() {
     
     //joints
     for(int i = 0; i < ARM_JOINT_COUNT; ++i) {
-        printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
+        #ifdef DEBUG_OUTPUT
+            printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
+        #endif
         setPWM(&pwm_driver, joints[i].servo.channel, 0, angle_to_pwm(&joints[i]));
     }
     //gripper
     //setpwm(&pwm_driver, gripper.channel, 0, get_twostate_servo(&gripper, gripper_closed));
-    printf("ch%d-%d\n", gripper.channel, get_twostate_servo(&gripper, gripper_closed));
+    #ifdef DEBUG_OUTPUT
+        printf("ch%d-%d\n", gripper.channel, get_twostate_servo(&gripper, gripper_closed));
+    #endif
 
     //send image to LCD
     //TODO
@@ -81,6 +90,7 @@ void inverse_kinematics() {
         joints[1].kinematic_link.angle = shoulder;
         joints[2].kinematic_link.angle = elbow;
         joints[3].kinematic_link.angle = wrist_bend;
+        #ifdef DEBUG_OUTPUT
         printf("   SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \t", 
             new_pos.x, 
             new_pos.y, 
@@ -89,10 +99,13 @@ void inverse_kinematics() {
             rad2deg(arm_chain.shoulder->angle), 
             rad2deg(arm_chain.elbow->angle), 
             rad2deg(arm_chain.wrist_bend->angle));
+        #endif
     }
     else
     {
+        #ifdef DEBUG_OUTPUT
         printf("NO SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \t", new_pos.x, new_pos.y, new_pos.z);
+        #endif
     }
 }
 
@@ -266,10 +279,22 @@ void setup() {
     new_pos.x = 0;
     new_pos.y = -170;
     new_pos.z = 80;
-    new_pos.phi = 0;
+    new_pos.phi = FREE_ANGLE;
 
     //call the IK function to initialize the joint angles, since output function is first in loop
     inverse_kinematics();
+
+    //start the camera/image processing on the second core
+    multicore_launch_core1(core1_entry);
+
+    uint32_t g = multicore_fifo_pop_blocking();
+
+    if (g != MULTICORE_FLAG_VALUE)
+        printf("core1 unexpected flag value\n");
+    else {
+        multicore_fifo_push_blocking(MULTICORE_FLAG_VALUE);
+        printf("core1 started\n");
+    }
 }
 
 void test() {
@@ -290,14 +315,24 @@ void test() {
 int main() {
     stdio_init_all();
 
+    vreg_set_voltage(VREG_VOLTAGE_1_30);
+    sleep_ms(1000);
+    set_sys_clock_khz(250000, true);
+
+    setup();
+    #ifdef DEBUG_OUTPUT
+    printf("oscfreq: %d\n", pwm_driver.oscillator_freq);
+    #endif
+
     while (!stdio_usb_connected());
     printf("Version: %d\nPress any key to begin program...\n", PROJECT_VERSION);
 
     char temp = getchar();
-    setup();
-    printf("oscfreq: %d\n", pwm_driver.oscillator_freq);
+
+    //send a signal to the other core to start the image processing logic
+    multicore_fifo_push_blocking(MULTICORE_FLAG_VALUE);
+
     //test function
-    test();
     calibrate();
     //end test code
 
