@@ -108,7 +108,7 @@ void get_test_inputs(int * x_axis, int * y_axis, int * z_axis) {
     if(counter >= 30) {counter = 0;}
 }
 
-void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, int * wrist_rot, int * gripper) {
+void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, double * wrist_rot, int * gripper) {
     int delta = 5;
     *x_axis = 0;
     *y_axis = 0;
@@ -118,7 +118,7 @@ void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, i
     int input;
     input = getchar_timeout_us(0);
     //printf("  char got: %c", (char)input);
-    switch((char)input) {
+    switch(input) {
         case PICO_ERROR_TIMEOUT:
             break;
         case 'w':

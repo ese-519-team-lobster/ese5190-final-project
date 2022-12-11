@@ -1,6 +1,7 @@
 
 
 #define MULTICORE_FLAG_VALUE 123
+#define MULTICORE_FLAG_TERMINATE 999
 
 
 void core1_entry();

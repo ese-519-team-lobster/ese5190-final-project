@@ -143,7 +143,10 @@ bool solve_ik(Chain * C, double x, double y, double z, double wr_rot, double * b
 	}
 
 	//solve angle of gripper
-	*wrist_rotate = wr_rot;
+	double _wr;
+	_wr = wr_rot - _base;
+
+	if (!angle_valid(C->wrist_rotate, _wr)) {return false;}
 	
 	// Solve XY (RZ) for the arm plane
 	if (phi == FREE_ANGLE) {
@@ -154,7 +157,7 @@ bool solve_ik(Chain * C, double x, double y, double z, double wr_rot, double * b
 	
 	// If there is a solution, return the angles
 	*base = _base;
-	
+	*wrist_rotate = _wr;
 	return true;
 }
 

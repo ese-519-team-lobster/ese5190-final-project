@@ -43,6 +43,8 @@ typedef struct  {
 Cart_pos curr_pos;
 Cart_pos new_pos;
 
+bool setup_failed = false;
+
 void print_arm_pos(Cart_pos * cart) {
     #ifdef DEBUG_OUTPUT
         printf("x: %.1lf\ty: %.1lf\tz: %.1lf\twr: %.1lf\tphi_cmd: %.1lf\tphi_cal: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \twr: %.1lf", 
@@ -84,7 +86,8 @@ void commands() {
 
 void read_inputs() {
     //joystick input
-    int dx, dy, dz, dw, dwr, dg;
+    int dx, dy, dz, dw, dg;
+    double dwr;
     //get_joystick_inputs(&dx, &dy, &dz);
     //get_test_inputs(&dx, &dy, &dz);
     get_console_inputs(&dx, &dy, &dz, &dw, &dwr, &dg);
@@ -92,15 +95,14 @@ void read_inputs() {
     new_pos.y = curr_pos.y + fix2double(dy, 0);
     new_pos.z = curr_pos.z + fix2double(dz, 0);
     new_pos.phi = deg2rad(rad2deg(curr_pos.phi) + fix2double(dw, 0));
-    new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + fix2double(dwr, 0));
+    new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + dwr);
     gripper_pos = gripper_pos + fix2double(dg, 0);
-    //print_arm_pos(&new_pos);
 
     //camera input
     //TODO
 }
 
-void inverse_kinematics() {
+bool inverse_kinematics() {
     double base, shoulder, elbow, wrist_bend, wrist_rotate;
     if(solve_ik(&arm_chain, new_pos.x, new_pos.y, new_pos.z, new_pos.wr_rot, &base, &shoulder, &elbow, &wrist_bend, &wrist_rotate, new_pos.phi)) {
         curr_pos = new_pos;
@@ -108,17 +110,20 @@ void inverse_kinematics() {
         joints[1].kinematic_link.angle = shoulder;
         joints[2].kinematic_link.angle = elbow;
         joints[3].kinematic_link.angle = wrist_bend;
-        joints[4].kinematic_link.angle = wrist_rotate;
+        //joints[4].kinematic_link.angle = wrist_rotate;
+        joints[4].kinematic_link.angle = wrist_rotate; // deg2rad(90);
         #ifdef DEBUG_OUTPUT
-        printf("SOLUTION:%.1lf,\ty:%.1lf,\tz:%.1lf,\tbase:%.1lf,\tshoulder:%.1lf,\telbow:%.1lf,\twrist:%.1lf\n",
+        printf("SOLUTION:%.1lf,\ty:%.1lf,\tz:%.1lf,\tbase:%.1lf,\tshoulder:%.1lf,\telbow:%.1lf,\twrist:%.1lf,\twrist_rot:%.1lf\n",
             new_pos.x, 
             new_pos.y, 
             new_pos.z, 
             rad2deg(arm_chain.base_rotation->angle), 
             rad2deg(arm_chain.shoulder->angle), 
             rad2deg(arm_chain.elbow->angle), 
-            rad2deg(arm_chain.wrist_bend->angle));
+            rad2deg(arm_chain.wrist_bend->angle),
+            rad2deg(arm_chain.wrist_rotate->angle));
         #endif
+        return true;
     }
     else
     {
@@ -127,6 +132,7 @@ void inverse_kinematics() {
         print_arm_pos(&new_pos);
         print_arm_pos(&curr_pos);
         #endif
+        return false;
     }
 }
 
@@ -315,7 +321,7 @@ void setup() {
     print_arm_pos(&new_pos);
 
     //call the IK function to initialize the joint angles, since output function is first in loop
-    inverse_kinematics();
+    if(!inverse_kinematics()) {setup_failed = true;}
 
     //start the camera/image processing on the second core
     multicore_launch_core1(core1_entry);
@@ -325,7 +331,7 @@ void setup() {
     if (g != MULTICORE_FLAG_VALUE)
         printf("core1 unexpected flag value\n");
     else {
-        multicore_fifo_push_blocking(MULTICORE_FLAG_VALUE);
+        multicore_fifo_push_blocking(setup_failed ? MULTICORE_FLAG_TERMINATE : MULTICORE_FLAG_VALUE);
         printf("core1 started\n");
     }
 }

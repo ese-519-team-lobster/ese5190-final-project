@@ -16,6 +16,7 @@ uint8_t image_buf[324*324];
 uint8_t displayBuf[80*160*2];
 uint8_t header[2] = {0x55,0xAA};
 
+bool failed_core0_setup = false;
 
 
 //index into array representing an X-by-Y matrix, where X increments first
@@ -58,10 +59,16 @@ void core1_entry() {
 
     uint32_t g = multicore_fifo_pop_blocking();
 
-    if (g != MULTICORE_FLAG_VALUE)
+    if (g == MULTICORE_FLAG_TERMINATE) {
+        printf("core0 indicates bad setup\n");
+        failed_core0_setup = true;
+    }
+    else if (g != MULTICORE_FLAG_VALUE) {
         printf("unexpected value from core0\n");
-    else
+    }
+    else {
         printf("core1 starting setup\n");
+    }
 
     gpio_init(PIN_LED);
     gpio_set_dir(PIN_LED, GPIO_OUT);
@@ -102,14 +109,23 @@ void core1_entry() {
     uint16_t score_buf[160*80];
     absolute_time_t start;
 
+    if (!failed_core0_setup) {
+        ST7735_FillRectangle(0, 0, ST7735_WIDTH, ST7735_HEIGHT, ST7735_GREEN);
+        ST7735_WriteString(2, 2, "CONN.", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
+        ST7735_WriteString(2, 30, "TO", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
+        ST7735_WriteString(2, 58, "USB", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
+        ST7735_WriteString(2, 86, "CON-", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
+        ST7735_WriteString(2, 112, "SOLE", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
+    }
+    else {
+        ST7735_FillRectangle(0, 0, ST7735_WIDTH, ST7735_HEIGHT, ST7735_RED);
+        ST7735_WriteString(2, 2, "ERR.", Font_16x26, ST7735_BLACK, ST7735_RED);
+        ST7735_WriteString(2, 30, "IN", Font_16x26, ST7735_BLACK, ST7735_RED);
+        ST7735_WriteString(2, 58, "MAIN", Font_16x26, ST7735_BLACK, ST7735_RED);
+        ST7735_WriteString(2, 86, "INIT", Font_16x26, ST7735_BLACK, ST7735_RED);
+        ST7735_WriteString(2, 112, " :(", Font_16x26, ST7735_BLACK, ST7735_RED);
 
-    ST7735_FillRectangle(0, 0, ST7735_WIDTH, ST7735_HEIGHT, ST7735_GREEN);
-    ST7735_WriteString(2, 2, "CONN.", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
-    ST7735_WriteString(2, 30, "TO", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
-    ST7735_WriteString(2, 58, "USB", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
-    ST7735_WriteString(2, 86, "CON-", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
-    ST7735_WriteString(2, 112, "SOLE", Font_16x26, ST7735_MAGENTA, ST7735_GREEN);
-
+    }
     g = multicore_fifo_pop_blocking();
     if (g != MULTICORE_FLAG_VALUE)
         printf("unexpected value from core0\n");
