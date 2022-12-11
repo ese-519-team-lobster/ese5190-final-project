@@ -8,6 +8,6 @@
 uint16_t angle_to_pwm(Joint * joint) {
     return joint->servo.pwm_min + (rad2deg(joint->kinematic_link.angle) - rad2deg(joint->kinematic_link.min_angle)) * (joint->servo.pwm_max - joint->servo.pwm_min) / (rad2deg(joint->kinematic_link.max_angle) - rad2deg(joint->kinematic_link.min_angle));
 }
-uint16_t get_twostate_servo(Servo * servo, bool isMin) {
-    return isMin ? servo->pwm_min : servo->pwm_max;
+uint16_t get_servo_position(Servo * servo, double pos) {
+    return servo->pwm_min + (pos) * (servo->pwm_max - servo->pwm_min) / (100);
 }

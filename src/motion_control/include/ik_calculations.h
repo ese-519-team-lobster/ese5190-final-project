@@ -42,6 +42,6 @@ Link init_link(double length, double min_angle, double max_angle);
 bool angle_valid(Link * L, double angle);
 
 void init_chain(Chain * C, Link * base, Link * shoulder, Link * elbow, Link * wrist_bend, Link * wrist_rotate);
-bool solve_ik(Chain * C, double x, double y, double z, double * base, double * shoulder, double * elbow, double * wrist, double phi);
-bool solve_ik_direct(Chain * C, double x, double y, double z, double phi);
+bool solve_ik(Chain * C, double x, double y, double z, double wr_rot, double * base, double * shoulder, double * elbow, double * wrist, double * wrist_rotate, double phi);
+bool solve_ik_direct(Chain * C, double x, double y, double z, double wr_rot, double phi);
 

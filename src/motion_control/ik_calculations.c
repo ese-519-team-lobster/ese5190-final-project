@@ -126,8 +126,8 @@ static bool solve_free(Chain * C, double x, double y, double * shoulder, double 
 	return false;
 }
 
-// Solve the angles for XYZ with a fixed attack angle
-bool solve_ik(Chain * C, double x, double y, double z, double * base, double * shoulder, double * elbow, double * wrist, double phi) {
+// Solve the angles for XYZ with a specific gripper rotation
+bool solve_ik(Chain * C, double x, double y, double z, double wr_rot, double * base, double * shoulder, double * elbow, double * wrist, double * wrist_rotate, double phi) {
 	// Solve the angle of the base
 	double _r = sqrt(x*x + y*y);
 	double _base = atan2(y, x);
@@ -141,6 +141,9 @@ bool solve_ik(Chain * C, double x, double y, double z, double * base, double * s
 			phi =  PI - phi;
 		}
 	}
+
+	//solve angle of gripper
+	*wrist_rotate = wr_rot;
 	
 	// Solve XY (RZ) for the arm plane
 	if (phi == FREE_ANGLE) {
@@ -157,13 +160,14 @@ bool solve_ik(Chain * C, double x, double y, double z, double * base, double * s
 
 // Solve the angles for XYZ with or without a fixed attack angle. Pass FREE_ANGLE for no attack angle.
 // Store the result directly in the provided Chain instead of individual doubles.
-bool solve_ik_direct(Chain * C, double x, double y, double z, double phi) {
-	double base, shoulder, elbow, wrist;
-    if (solve_ik(C, x, y, z, &base, &shoulder, &elbow, &wrist, phi)) {
+bool solve_ik_direct(Chain * C, double x, double y, double z, double wr_rot, double phi) {
+	double base, shoulder, elbow, wrist, wrist_rotate;
+    if (solve_ik(C, x, y, z, wr_rot, &base, &shoulder, &elbow, &wrist, &wrist_rotate, phi)) {
 		C->base_rotation->angle = base;
 		C->shoulder->angle = shoulder;
 		C->elbow->angle = elbow;
 		C->wrist_bend->angle = wrist;
+		C->wrist_rotate->angle = wrist_rotate;
 		return true;
 	}
 	else {

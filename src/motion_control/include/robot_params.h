@@ -16,7 +16,7 @@
 //Individual servo angle limits, for IK calculations
 
 #define BASE_ROTATION_MIN_ANGLE 23.0
-#define BASE_ROTATION_MAX_ANGLE 118.0 
+#define BASE_ROTATION_MAX_ANGLE 198.0 
 
 #define SHOULDER_MIN_ANGLE 0.0
 #define SHOULDER_MAX_ANGLE 180.0
@@ -30,8 +30,8 @@
 #define WRIST_ROTATION_MIN_ANGLE 10.0
 #define WRIST_ROTATION_MAX_ANGLE 170.0
 
-#define GRIPPER_MIN_ANGLE 0.0
-#define GRIPPER_MAX_ANGLE 180.0
+#define GRIPPER_MIN_POS 0.0
+#define GRIPPER_MAX_POS 100.0
 
 // Individual servo PWM limits
 
@@ -50,6 +50,6 @@
 #define WRIST_ROTATION_MIN_PWM 130
 #define WRIST_ROTATION_MAX_PWM 475
 
-#define GRIPPER_MIN_PWM 200
-#define GRIPPER_MAX_PWM 300
+#define GRIPPER_MIN_PWM 100
+#define GRIPPER_MAX_PWM 350
 

@@ -107,3 +107,57 @@ void get_test_inputs(int * x_axis, int * y_axis, int * z_axis) {
     counter++;
     if(counter >= 30) {counter = 0;}
 }
+
+void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, int * wrist_rot, int * gripper) {
+    int delta = 5;
+    *x_axis = 0;
+    *y_axis = 0;
+    *z_axis = 0;
+    *wrist = 0;
+    *gripper = 0;
+    int input;
+    input = getchar_timeout_us(0);
+    //printf("  char got: %c", (char)input);
+    switch((char)input) {
+        case PICO_ERROR_TIMEOUT:
+            break;
+        case 'w':
+            *x_axis = delta;
+            break;
+        case 's':
+            *x_axis = -delta;
+            break;
+        case 'r':
+            *z_axis = delta;
+            break;
+        case 'f':
+            *z_axis = -delta;
+            break;
+        case 'a':
+            *y_axis = delta;
+            break;
+        case 'd':
+            *y_axis = -delta;
+            break;
+        case 't':
+            *wrist = -delta;
+            break;
+        case 'g':
+            *wrist = delta;
+            break;
+        case 'o':
+            *gripper = delta;
+            break;
+        case 'k':
+            *gripper = -delta;
+            break;
+        case 'q':
+            *wrist_rot = delta;
+            break;
+        case 'e':
+            *wrist_rot = -delta;
+            break;
+        default:
+            break;
+    }
+}

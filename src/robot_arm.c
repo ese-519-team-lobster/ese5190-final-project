@@ -13,8 +13,8 @@
 #include "joystick.h"
 #include "point_track.h"
 
-#define I2C_SDA_PIN 22
-#define I2C_SCL_PIN 23
+#define I2C_SDA_PIN 26
+#define I2C_SCL_PIN 27
 #define I2C_INSTANCE i2c1
 
 #define PCA9685_ADDR 0x40
@@ -29,6 +29,7 @@ Chain arm_chain;
 
 Joint joints[ARM_JOINT_COUNT];
 Servo gripper;
+double gripper_pos;
 bool gripper_closed;
 
 typedef struct  {
@@ -36,10 +37,28 @@ typedef struct  {
   double y;
   double z;  
   double phi;
+  double wr_rot;
 } Cart_pos;
 
 Cart_pos curr_pos;
 Cart_pos new_pos;
+
+void print_arm_pos(Cart_pos * cart) {
+    #ifdef DEBUG_OUTPUT
+        printf("x: %.1lf\ty: %.1lf\tz: %.1lf\twr: %.1lf\tphi_cmd: %.1lf\tphi_cal: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \twr: %.1lf", 
+            cart->x, 
+            cart->y, 
+            cart->z,
+            cart->wr_rot,
+            cart->phi,
+            rad2deg(arm_chain.current_phi),
+            rad2deg(arm_chain.base_rotation->angle), 
+            rad2deg(arm_chain.shoulder->angle), 
+            rad2deg(arm_chain.elbow->angle), 
+            rad2deg(arm_chain.wrist_bend->angle),
+            rad2deg(arm_chain.wrist_rotate->angle));
+    #endif
+}
 
 void commands() {
     //send commands to servos
@@ -47,14 +66,14 @@ void commands() {
     //joints
     for(int i = 0; i < ARM_JOINT_COUNT; ++i) {
         #ifdef DEBUG_OUTPUT
-            printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
+            //printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
         #endif
         setPWM(&pwm_driver, joints[i].servo.channel, 0, angle_to_pwm(&joints[i]));
     }
     //gripper
-    //setpwm(&pwm_driver, gripper.channel, 0, get_twostate_servo(&gripper, gripper_closed));
+    setPWM(&pwm_driver, gripper.channel, 0, get_servo_position(&gripper, gripper_pos));
     #ifdef DEBUG_OUTPUT
-        printf("ch%d-%d\n", gripper.channel, get_twostate_servo(&gripper, gripper_closed));
+        //printf("ch%d-%d", gripper.channel, get_servo_position(&gripper, gripper_pos));
     #endif
 
     //send image to LCD
@@ -65,64 +84,61 @@ void commands() {
 
 void read_inputs() {
     //joystick input
-    int dx, dy, dz;
+    int dx, dy, dz, dw, dwr, dg;
     //get_joystick_inputs(&dx, &dy, &dz);
-    get_test_inputs(&dx, &dy, &dz);
+    //get_test_inputs(&dx, &dy, &dz);
+    get_console_inputs(&dx, &dy, &dz, &dw, &dwr, &dg);
     new_pos.x = curr_pos.x + fix2double(dx, 0);
     new_pos.y = curr_pos.y + fix2double(dy, 0);
     new_pos.z = curr_pos.z + fix2double(dz, 0);
-    new_pos.phi = curr_pos.phi;
-
+    new_pos.phi = deg2rad(rad2deg(curr_pos.phi) + fix2double(dw, 0));
+    new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + fix2double(dwr, 0));
+    gripper_pos = gripper_pos + fix2double(dg, 0);
+    //print_arm_pos(&new_pos);
 
     //camera input
     //TODO
 }
 
-void image_processing() {
-    //todo
-}
-
 void inverse_kinematics() {
-    double base, shoulder, elbow, wrist_bend;
-    if(solve_ik(&arm_chain, new_pos.x, new_pos.y, new_pos.z, &base, &shoulder, &elbow, &wrist_bend, new_pos.phi)) {
+    double base, shoulder, elbow, wrist_bend, wrist_rotate;
+    if(solve_ik(&arm_chain, new_pos.x, new_pos.y, new_pos.z, new_pos.wr_rot, &base, &shoulder, &elbow, &wrist_bend, &wrist_rotate, new_pos.phi)) {
         curr_pos = new_pos;
         joints[0].kinematic_link.angle = base;
         joints[1].kinematic_link.angle = shoulder;
         joints[2].kinematic_link.angle = elbow;
         joints[3].kinematic_link.angle = wrist_bend;
+        joints[4].kinematic_link.angle = wrist_rotate;
         #ifdef DEBUG_OUTPUT
-        printf("   SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \t", 
-            new_pos.x, 
-            new_pos.y, 
-            new_pos.z, 
-            rad2deg(arm_chain.base_rotation->angle), 
-            rad2deg(arm_chain.shoulder->angle), 
-            rad2deg(arm_chain.elbow->angle), 
-            rad2deg(arm_chain.wrist_bend->angle));
+        printf("\nSOLUTION - ");
+        print_arm_pos(&new_pos);
+        print_arm_pos(&curr_pos);
         #endif
     }
     else
     {
         #ifdef DEBUG_OUTPUT
-        printf("NO SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \t", new_pos.x, new_pos.y, new_pos.z);
+        printf("\nNO SOLUTION - ");//x: %.1lf\ty: %.1lf\tz: %.1lf\tphi: %.1lf\tphi_cal: %.1lf   \t", new_pos.x, new_pos.y, new_pos.z, new_pos.phi, arm_chain.current_phi);
+        print_arm_pos(&new_pos);
+        print_arm_pos(&curr_pos);
         #endif
     }
 }
 
 void ik_test(double x, double y, double z) {
-    bool sol_found = solve_ik_direct(&arm_chain, x, y, z, FREE_ANGLE);
-    printf("solved: %s\tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf\n", 
-        sol_found ? "yes" : "no", 
-        rad2deg(arm_chain.base_rotation->angle), 
-        rad2deg(arm_chain.shoulder->angle), 
-        rad2deg(arm_chain.elbow->angle), 
-        rad2deg(arm_chain.wrist_bend->angle));
+    //bool sol_found = solve_ik_direct(&arm_chain, x, y, z, FREE_ANGLE);
+    // printf("solved: %s\tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf\n", 
+    //     sol_found ? "yes" : "no", 
+    //     rad2deg(arm_chain.base_rotation->angle), 
+    //     rad2deg(arm_chain.shoulder->angle), 
+    //     rad2deg(arm_chain.elbow->angle), 
+    //     rad2deg(arm_chain.wrist_bend->angle));
 }
 
 void calibrate() {
-    uint16_t pwm_mins[ARM_JOINT_COUNT];
-    uint16_t pwm_maxs[ARM_JOINT_COUNT];
-    uint16_t pwm_curr[ARM_JOINT_COUNT];
+    uint16_t pwm_mins[ARM_JOINT_COUNT+1];
+    uint16_t pwm_maxs[ARM_JOINT_COUNT+1];
+    uint16_t pwm_curr[ARM_JOINT_COUNT+1];
     int input = 0;
     int joint = 0;
 
@@ -136,26 +152,35 @@ void calibrate() {
     pwm_curr[2] = 370;
     pwm_curr[3] = 200;
     pwm_curr[4] = 310;
+    pwm_curr[5] = get_servo_position(&gripper, 50);
 
     pwm_mins[0] = BASE_ROTATION_MIN_PWM;
     pwm_mins[1] = SHOULDER_MIN_PWM;
     pwm_mins[2] = ELBOW_MIN_PWM;
     pwm_mins[3] = WRIST_BEND_MIN_PWM;
     pwm_mins[4] = WRIST_ROTATION_MIN_PWM;
+    pwm_mins[5] = GRIPPER_MIN_PWM;
 
     pwm_maxs[0] = BASE_ROTATION_MAX_PWM;
     pwm_maxs[1] = SHOULDER_MAX_PWM;
     pwm_maxs[2] = ELBOW_MAX_PWM;
     pwm_maxs[3] = WRIST_BEND_MAX_PWM;
     pwm_maxs[4] = WRIST_ROTATION_MAX_PWM;
+    pwm_maxs[5] = GRIPPER_MAX_PWM;
 
     for (int i = 0; i < ARM_JOINT_COUNT; i++) {
         setPWM(&pwm_driver, joints[i].servo.channel, 0, pwm_curr[i]);
     }
+    setPWM(&pwm_driver,gripper.channel,0,pwm_curr[5]);
 
     while(loop) {
 
+        if(joint <5) {
         setPWM(&pwm_driver, joints[joint].servo.channel, 0, pwm_curr[joint]);
+        }
+        else {
+            setPWM(&pwm_driver, gripper.channel, 0, pwm_curr[5]);
+        }
         printf("setting J%d: %d     ", joint, pwm_curr[joint]);
 
         do{
@@ -209,7 +234,7 @@ void calibrate() {
                 break;
         }
         //printf("eval'd char");
-        if (joint > 4) {joint = 4;}
+        if (joint > 5) {joint = 5;}
         if (joint < 0) {joint = 0;}
         pwm_curr[joint] = (pwm_curr[joint] > 50 && pwm_curr[joint] < 700) ? pwm_curr[joint] : 300;
         //printf("ch%d-%d,\t", joints[i].servo.channel, pwm_val);
@@ -217,8 +242,8 @@ void calibrate() {
     }
 
     printf("\n");
-    for (int i = 0; i < ARM_JOINT_COUNT; i++) {
-        printf("J%d max: %d\tmin: %d\n", joint, pwm_maxs[i], pwm_mins[i]);
+    for (int i = 0; i < ARM_JOINT_COUNT+1; i++) {
+        printf("J%d max: %d\tmin: %d\n", i, pwm_maxs[i], pwm_mins[i]);
 
     }
 }
@@ -276,10 +301,13 @@ void setup() {
         &joints[4].kinematic_link);
 
     //initialize the cartesian position
-    new_pos.x = 0;
-    new_pos.y = -170;
-    new_pos.z = 80;
-    new_pos.phi = FREE_ANGLE;
+    new_pos.x = FOREARM_LENGTH;
+    new_pos.y = 0;
+    new_pos.z = 65;
+    new_pos.phi = deg2rad(0);
+    new_pos.wr_rot = deg2rad(90);
+    gripper_pos = 50;
+    print_arm_pos(&new_pos);
 
     //call the IK function to initialize the joint angles, since output function is first in loop
     inverse_kinematics();
@@ -339,10 +367,8 @@ int main() {
     while(1) {
         commands();
         read_inputs();
-        //figure out how to use second core for this?
-        image_processing();
         inverse_kinematics();
-        sleep_ms(1000);
+        sleep_ms(100);
     }
 
     return 1;

@@ -124,7 +124,10 @@ void core1_entry() {
         arducam_capture_frame(&config);
 
         uint16_t index = 0;
-        memset(score_buf, 0, 80*160);
+        //memset(score_buf, 0, sizeof(score_buf));
+        for(int i =0; i < 160*80; i++) {
+            score_buf[i] = 0;
+        }
 
         for (int y = 0; y < 160; y++) {
             for (int x = 0; x < 80; x++) {

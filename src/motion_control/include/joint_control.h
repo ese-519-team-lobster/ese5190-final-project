@@ -15,4 +15,4 @@ typedef struct {
 } Joint;
 
 uint16_t angle_to_pwm(Joint * joint);
-uint16_t get_twostate_servo(Servo * servo, bool isMin); 
+uint16_t get_servo_position(Servo * servo, double pos); 
