@@ -110,9 +110,14 @@ void inverse_kinematics() {
         joints[3].kinematic_link.angle = wrist_bend;
         joints[4].kinematic_link.angle = wrist_rotate;
         #ifdef DEBUG_OUTPUT
-        printf("\nSOLUTION - ");
-        print_arm_pos(&new_pos);
-        print_arm_pos(&curr_pos);
+        printf("SOLUTION:%.1lf,\ty:%.1lf,\tz:%.1lf,\tbase:%.1lf,\tshoulder:%.1lf,\telbow:%.1lf,\twrist:%.1lf\n",
+            new_pos.x, 
+            new_pos.y, 
+            new_pos.z, 
+            rad2deg(arm_chain.base_rotation->angle), 
+            rad2deg(arm_chain.shoulder->angle), 
+            rad2deg(arm_chain.elbow->angle), 
+            rad2deg(arm_chain.wrist_bend->angle));
         #endif
     }
     else
