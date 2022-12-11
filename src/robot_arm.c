@@ -91,7 +91,7 @@ void inverse_kinematics() {
         joints[2].kinematic_link.angle = elbow;
         joints[3].kinematic_link.angle = wrist_bend;
         #ifdef DEBUG_OUTPUT
-        printf("   SOLUTION - x: %.1lf\ty: %.1lf\tz: %.1lf   \tbase: %.1lf\tshoulder: %.1lf\telbow: %.1lf\twrist: %.1lf \t", 
+        printf("SOLUTION:%.1lf,\ty:%.1lf,\tz:%.1lf,\tbase:%.1lf,\tshoulder:%.1lf,\telbow:%.1lf,\twrist:%.1lf\n",
             new_pos.x, 
             new_pos.y, 
             new_pos.z, 
