@@ -267,6 +267,9 @@ void setup() {
     pca9685_begin(&pwm_driver, 0);
     setPWMFreq(&pwm_driver, 50);
 
+    //init joystick
+    joystick_init(29, 28, 27);
+
     //init IK and Servo maps
     joints[0].servo.channel = 0;
     joints[0].servo.pwm_max = BASE_ROTATION_MAX_PWM;

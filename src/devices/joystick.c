@@ -31,7 +31,7 @@ void get_joystick_inputs(int * x_axis, int * y_axis, int * z_axis) {
 
     // If joystick is pressed
     if (!prev_sel && curr_sel) {
-        *z_axis = !z_axis;
+        toggle_z_axis = !toggle_z_axis;
     }
 
     // Select ADC input 3 (GPIO29)
@@ -49,7 +49,7 @@ void get_joystick_inputs(int * x_axis, int * y_axis, int * z_axis) {
         *x_axis = -DELTA_X;
     }
 
-    if (z_axis) {
+    if (toggle_z_axis) {
        
         if (Y >= 3000) {
             printf("Z UP\n");
