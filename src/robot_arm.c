@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "pico/stdlib.h"
 #include <stdio.h>
 #include "hardware/i2c.h"
@@ -13,14 +14,17 @@
 #include "joystick.h"
 #include "point_track.h"
 
-#define I2C_SDA_PIN 26
-#define I2C_SCL_PIN 27
-#define I2C_INSTANCE i2c1
+#define I2C_SDA_PIN 0
+#define I2C_SCL_PIN 1
+#define I2C_INSTANCE i2c0
 
 #define PCA9685_ADDR 0x40
 #define PCA9685_OSC_FREQ 26600000 //tuned to the PCA9685 we have on hand
 
 #define ARM_JOINT_COUNT 5
+
+#define POINT_TRACK_VAL_THRESHOLD 4000
+#define POINT_TRACK_POS_DEADBAND 5
 
 #define DEBUG_OUTPUT
 
@@ -42,6 +46,9 @@ typedef struct  {
 
 Cart_pos curr_pos;
 Cart_pos new_pos;
+
+bool read_console_control = true;
+bool read_cam_control = false;
 
 bool setup_failed = false;
 
@@ -70,7 +77,7 @@ void commands() {
         #ifdef DEBUG_OUTPUT
             //printf("ch%d-%d,\t", joints[i].servo.channel, angle_to_pwm(&joints[i])); //TODO convert to degrees
         #endif
-        setPWM(&pwm_driver, joints[i].servo.channel, 0, angle_to_pwm(&joints[i]));
+        setPWM(&pwm_driver, joints[i].servo.channel, 0, angle_to_pwm(&joints[i], true));
     }
     //gripper
     setPWM(&pwm_driver, gripper.channel, 0, get_servo_position(&gripper, gripper_pos));
@@ -86,20 +93,93 @@ void commands() {
 
 void read_inputs() {
     //joystick input
-    int dx, dy, dz, dw, dg;
-    double dwr;
+    int dx, dy, dz;
+    int dw = 0;
+    int dg = 0;
+    double dwr = 0;
+    int prog_cmd = 0;
+    static uint16_t detect_threshold = POINT_TRACK_VAL_THRESHOLD;
     //get_joystick_inputs(&dx, &dy, &dz);
     //get_test_inputs(&dx, &dy, &dz);
-    get_console_inputs(&dx, &dy, &dz, &dw, &dwr, &dg);
-    new_pos.x = curr_pos.x + fix2double(dx, 0);
-    new_pos.y = curr_pos.y + fix2double(dy, 0);
+    get_console_inputs(&dx, &dy, &dz, &dw, &dwr, &dg, &prog_cmd);
+
+    switch(prog_cmd) {
+        case 0:
+            break;
+        case 'c':
+            read_cam_control = true;
+            read_console_control = false;
+            break;
+        case 'x':
+            read_cam_control = false;
+            read_console_control = true;
+            break;
+        case 'n':
+            detect_threshold -= 50;
+            break;
+        case 'm':
+            detect_threshold += 50;
+            break;
+    }
+    //if position commands should be read from console
+    if (read_console_control){
+        new_pos.x = curr_pos.x + fix2double(dx, 0);
+        new_pos.y = curr_pos.y + fix2double(dy, 0);
+    }
+        
+    //alaways can control these from console
     new_pos.z = curr_pos.z + fix2double(dz, 0);
     new_pos.phi = deg2rad(rad2deg(curr_pos.phi) + fix2double(dw, 0));
     new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + dwr);
     gripper_pos = gripper_pos + fix2double(dg, 0);
 
     //camera input
-    //TODO
+    if (read_cam_control) {
+        uint32_t g; 
+        int x_cam, y_cam, val;
+        if (multicore_fifo_pop_timeout_us(0, &g)){
+            if (g != INTERCORE_PROG_MSG) {
+                printf("core1 unexpected msg value: %d\n", g);
+                new_pos.x = curr_pos.x;
+                new_pos.y = curr_pos.y;
+            }
+            else {
+                x_cam = multicore_fifo_pop_blocking();
+                y_cam = multicore_fifo_pop_blocking();
+                val = multicore_fifo_pop_blocking();
+                x_cam = (x_cam - (DISP_X_MAX / 2)) / 2;
+                y_cam = ((DISP_Y_MAX / 2) - y_cam) / 2; //invert to match arm y-axis
+
+                
+
+                printf("cam data read: x_cam:%d,\ty_cam:%d,\tcam_val:%d(^v%d)\n", x_cam, y_cam, val, detect_threshold);
+
+                if (x_cam > 5) {x_cam = 5;}
+                if (y_cam > 5) {y_cam = 5;}
+                if (x_cam < -5) {x_cam = -5;}
+                if (y_cam < -5) {y_cam = -5;}
+
+                if ((abs(x_cam) < POINT_TRACK_POS_DEADBAND)) {x_cam = 0;}
+                if ((abs(y_cam) < POINT_TRACK_POS_DEADBAND)) {y_cam = 0;}
+
+                x_cam = x_cam / 2;
+                y_cam = y_cam / 2;
+                
+                if (val > POINT_TRACK_VAL_THRESHOLD) {
+                    new_pos.x = curr_pos.x + x_cam;
+                    new_pos.y = curr_pos.y + y_cam;
+                }
+            }
+        }
+        else {
+            new_pos.x = curr_pos.x;
+            new_pos.y = curr_pos.y;
+        }
+    }
+    else {
+        //we don't need the position info from the camera, so discard it to make room for new data
+        multicore_fifo_drain();
+    }
 }
 
 bool inverse_kinematics() {
@@ -185,7 +265,7 @@ void calibrate() {
     setPWM(&pwm_driver,gripper.channel,0,pwm_curr[5]);
 
     while(loop) {
-
+        multicore_fifo_drain();
         if(joint <5) {
         setPWM(&pwm_driver, joints[joint].servo.channel, 0, pwm_curr[joint]);
         }
@@ -274,7 +354,7 @@ void setup() {
     setPWMFreq(&pwm_driver, 50);
 
     //init joystick
-    joystick_init(29, 28, 27);
+    joystick_init(26, 27, 28);
 
     //init IK and Servo maps
     joints[0].servo.channel = 0;
@@ -315,16 +395,19 @@ void setup() {
         &joints[4].kinematic_link);
 
     //initialize the cartesian position
-    new_pos.x = FOREARM_LENGTH;
+    new_pos.x = FOREARM_LENGTH + 10;
     new_pos.y = 0;
-    new_pos.z = 65;
-    new_pos.phi = deg2rad(0);
+    new_pos.z = 50;
+    new_pos.phi = deg2rad(15);
     new_pos.wr_rot = deg2rad(90);
     gripper_pos = 50;
     print_arm_pos(&new_pos);
 
     //call the IK function to initialize the joint angles, since output function is first in loop
     if(!inverse_kinematics()) {setup_failed = true;}
+    for (int i = 0; i < ARM_JOINT_COUNT; i++) {
+        joints[i].current_cmd_angle = joints->kinematic_link.angle;
+    }
 
     //start the camera/image processing on the second core
     multicore_launch_core1(core1_entry);

@@ -13,7 +13,7 @@
 
 
 uint8_t image_buf[324*324];
-uint8_t displayBuf[80*160*2];
+uint8_t displayBuf[DISP_X_MAX*DISP_Y_MAX*2];
 uint8_t header[2] = {0x55,0xAA};
 
 bool failed_core0_setup = false;
@@ -76,7 +76,7 @@ void core1_entry() {
 
 
     ST7735_Init();
-    ST7735_DrawImage(0, 0, 80, 160, arducam_logo);
+    ST7735_DrawImage(0, 0, DISP_X_MAX, DISP_Y_MAX, arducam_logo);
 
     struct arducam_config config;
     config.sccb = i2c0;
@@ -102,11 +102,11 @@ void core1_entry() {
         int x;
         int y;
         uint16_t val;
-        uint16_t index;
+        uint16_t index; 
     } max_point;
     uint16_t max_RGB = ST7735_COLOR565(0xff, 0x0, 0x0);
 
-    uint16_t score_buf[160*80];
+    uint16_t score_buf[DISP_X_MAX*DISP_Y_MAX];
     absolute_time_t start;
 
     if (!failed_core0_setup) {
@@ -148,7 +148,13 @@ void core1_entry() {
         for (int y = 0; y < 160; y++) {
             for (int x = 0; x < 80; x++) {
                 uint8_t c = image_buf[(2+320-2*y)*324+(2+40+2*x)];
-                uint16_t imageRGB   = ST7735_COLOR565(c, c, c);
+                uint16_t imageRGB;
+                if (x == (DISP_X_MAX/2) || y == (DISP_Y_MAX/2)) {
+                    imageRGB = ST7735_BLUE;
+                }
+                else {
+                    imageRGB = ST7735_COLOR565(c, c, c);
+                }
                 add_pixel(x,y,80,160,score_buf,1,c);
 
                 displayBuf[index++] = (uint8_t)(imageRGB >> 8) & 0xFF;
@@ -185,9 +191,14 @@ void core1_entry() {
         
         ST7735_DrawImage(0, 0, 80, 160, displayBuf);
         char array[10];
-        sprintf(array, "%d", absolute_time_diff_us(start,get_absolute_time()));
+        sprintf(array, "%dm", absolute_time_diff_us(start,get_absolute_time()) / 1000);
         ST7735_FillRectangle(0, 134, ST7735_WIDTH, 26, ST7735_BLACK);
         ST7735_WriteString(2, 134, array, Font_16x26, ST7735_GREEN, ST7735_BLACK);
+
+        multicore_fifo_push_blocking(INTERCORE_PROG_MSG);
+        multicore_fifo_push_blocking(max_point.x);
+        multicore_fifo_push_blocking(max_point.y);
+        multicore_fifo_push_blocking(max_point.val);
 
         //printf("%s%s", header, displayBuf);
         //printf("x:%2d, y:%3d, t:%s\n", max_point.x, max_point.y,array);

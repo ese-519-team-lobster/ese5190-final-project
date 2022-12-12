@@ -10,9 +10,9 @@
 
 static bool prev_sel = false;
 static bool toggle_z_axis = false;
-static int Y_IN = 28;
-static int X_IN = 29;
-static int SEL_IN = 27;
+static int X_IN = 26;
+static int Y_IN = 27;
+static int SEL_IN = 28;
 
 void joystick_init(int x_pin, int y_pin, int sel_pin) {
     Y_IN = y_pin;
@@ -27,6 +27,9 @@ void joystick_init(int x_pin, int y_pin, int sel_pin) {
 }
 
 void get_joystick_inputs(int * x_axis, int * y_axis, int * z_axis) {
+    *x_axis = 0;
+    *y_axis = 0;
+    *z_axis = 0;
     bool curr_sel = !gpio_get(SEL_IN);
 
     // If joystick is pressed
@@ -35,16 +38,17 @@ void get_joystick_inputs(int * x_axis, int * y_axis, int * z_axis) {
     }
 
     // Select ADC input 3 (GPIO29)
-    adc_select_input(3);
+    adc_select_input(0);
     uint16_t X = adc_read();
     // Select ADC input 2 (GPIO28)
-    adc_select_input(2);
+    adc_select_input(1);
     uint16_t Y = adc_read();
 
-    if (X >= 3000) {
+    printf("x_adc:%d\ty_adc:%d\n", X, Y);
+    if (X >= 4000) {
         printf("X RIGHT\n");
         *x_axis = DELTA_X;
-    } else if (X <= 1000) {
+    } else if (X <= 1500) {
         printf("X LEFT\n");
         *x_axis = -DELTA_X;
     }
@@ -108,7 +112,7 @@ void get_test_inputs(int * x_axis, int * y_axis, int * z_axis) {
     if(counter >= 30) {counter = 0;}
 }
 
-void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, double * wrist_rot, int * gripper) {
+void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, double * wrist_rot, int * gripper, int * prog_cmd) {
     int delta = 5;
     *x_axis = 0;
     *y_axis = 0;
@@ -158,6 +162,7 @@ void get_console_inputs(int * x_axis, int * y_axis, int * z_axis, int * wrist, d
             *wrist_rot = -delta;
             break;
         default:
+            *prog_cmd = input;
             break;
     }
 }

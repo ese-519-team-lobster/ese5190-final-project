@@ -2,6 +2,9 @@
 
 #define MULTICORE_FLAG_VALUE 123
 #define MULTICORE_FLAG_TERMINATE 999
+#define INTERCORE_PROG_MSG 42
+#define DISP_X_MAX 80
+#define DISP_Y_MAX 160
 
 
 void core1_entry();
