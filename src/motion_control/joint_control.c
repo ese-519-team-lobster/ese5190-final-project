@@ -7,7 +7,6 @@
 //based on the min/max angle & PWM (linear interpolation)
 //optionally smooths motion
 uint16_t angle_to_pwm(Joint * joint, bool smooth) {
-    double diff;
     if (smooth && (abs(joint->kinematic_link.angle - joint->current_cmd_angle) > 3)) {
         joint->current_cmd_angle += SERVO_SMOOTH_COEFF * (joint->kinematic_link.angle - joint->current_cmd_angle);
     }

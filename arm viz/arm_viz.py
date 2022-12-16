@@ -5,7 +5,7 @@ import math
 
 # Set the serial port and baud rate
 try:
-    ser = serial.Serial('/dev/tty.usbmodem14101')
+    ser = serial.Serial('COM6')
 except Exception:
     print("Cannot open serial port")
 
@@ -16,8 +16,8 @@ pygame.init()
 width, height = 640, 480
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption('lobster robot arm')
-gameIcon = pygame.image.load('dalton.jpg')
-pygame.display.set_icon(gameIcon)
+#gameIcon = pygame.image.load('dalton.jpg')
+#pygame.display.set_icon(gameIcon)
 
 # Define colors
 black = (0, 0, 0)
@@ -50,7 +50,7 @@ while True:
         print(joint_angles)
 
         # Define the coordinates of the robot arm components
-        j1_a, j2_a, j3_a, ee_a = joint_angles
+        j1_a, j2_a, j3_a, ee_a, ee_r = joint_angles
         j1_l, j2_l, j3_l, ee_l = joint_lengths
 
         base_x1 = 200
@@ -58,12 +58,12 @@ while True:
         base_x2 = base_x1 + 50
         j1_x = base_x1 + 25
         j1_y = base_y
-        j2_x = j1_x + j1_l * math.sin(j1_a * (math.pi / 180))
-        j2_y = j1_y - j1_l * math.cos(j1_a * (math.pi / 180))
+        j2_x = j1_x + j1_l * math.cos(j1_a * (math.pi / 180))
+        j2_y = j1_y - j1_l * math.sin(j1_a * (math.pi / 180))
         j3_x = j2_x + j2_l * math.sin((j1_a + j2_a) * (math.pi / 180))
-        j3_y = j2_y - j2_l * math.cos((j1_a + j2_a) * (math.pi / 180))
-        j4_x = j3_x + j3_l * math.sin((j1_a + j2_a + j3_a) * (math.pi / 180))
-        j4_y = j3_y - j3_l * math.cos((j1_a + j2_a + j3_a) * (math.pi / 180))
+        j3_y = j2_y + j2_l * math.cos((j1_a + j2_a) * (math.pi / 180))
+        j4_x = j3_x - j3_l * math.cos((j1_a + j2_a + j3_a) * (math.pi / 180))
+        j4_y = j3_y + j3_l * math.sin((j1_a + j2_a + j3_a) * (math.pi / 180))
         ee_x = j4_x + ee_l * math.sin((j1_a + j2_a + j3_a + ee_a) * (math.pi / 180))
         ee_y = j4_y - ee_l * math.cos((j1_a + j2_a + j3_a + ee_a) * (math.pi / 180))
 
@@ -83,8 +83,8 @@ while True:
         pygame.draw.lines(screen, black, False, [(j3_x, j3_y), (j4_x, j4_y)], 5)
 
         # Draw the end effector using the draw.circle(), draw.rect(), and draw.lines() method
-        pygame.draw.circle(screen, black, (j4_x, j4_y), 5)
-        pygame.draw.lines(screen, black, False, [(j4_x, j4_y), (ee_x, ee_y)], 15)
+        #pygame.draw.circle(screen, black, (j4_x, j4_y), 5)
+        #pygame.draw.lines(screen, black, False, [(j4_x, j4_y), (ee_x, ee_y)], 15)
 
         # Update the screen
         pygame.display.flip()

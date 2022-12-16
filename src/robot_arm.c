@@ -13,6 +13,7 @@
 #include "PCA9685.h"
 #include "joystick.h"
 #include "point_track.h"
+#include "nunchuck.h"
 
 #define I2C_SDA_PIN 0
 #define I2C_SCL_PIN 1
@@ -29,6 +30,7 @@
 #define DEBUG_OUTPUT
 
 PCA9685 pwm_driver;
+nunchuck nunchuck_device;
 Chain arm_chain;
 
 Joint joints[ARM_JOINT_COUNT];
@@ -49,6 +51,7 @@ Cart_pos new_pos;
 
 bool read_console_control = true;
 bool read_cam_control = false;
+bool read_joy_control = false;
 
 bool setup_failed = false;
 
@@ -94,14 +97,17 @@ void commands() {
 void read_inputs() {
     //joystick input
     int dx, dy, dz;
+    int j_dx, j_dy, j_dz;
     int dw = 0;
     int dg = 0;
     double dwr = 0;
     int prog_cmd = 0;
+    bool z_button;
     static uint16_t detect_threshold = POINT_TRACK_VAL_THRESHOLD;
-    //get_joystick_inputs(&dx, &dy, &dz);
+    //
     //get_test_inputs(&dx, &dy, &dz);
     get_console_inputs(&dx, &dy, &dz, &dw, &dwr, &dg, &prog_cmd);
+    get_nunchuck_inputs(&nunchuck_device, &j_dx, &j_dy, &j_dz, &z_button);
 
     switch(prog_cmd) {
         case 0:
@@ -109,11 +115,17 @@ void read_inputs() {
         case 'c':
             read_cam_control = true;
             read_console_control = false;
+            read_joy_control = false;
             break;
         case 'x':
             read_cam_control = false;
             read_console_control = true;
+            read_joy_control = false;
             break;
+        case 'v':
+            read_joy_control = true;
+            read_console_control = false;
+            read_cam_control = false;
         case 'n':
             detect_threshold -= 50;
             break;
@@ -121,17 +133,42 @@ void read_inputs() {
             detect_threshold += 50;
             break;
     }
-    //if position commands should be read from console
-    if (read_console_control){
-        new_pos.x = curr_pos.x + fix2double(dx, 0);
-        new_pos.y = curr_pos.y + fix2double(dy, 0);
+
+    if (z_button && !read_joy_control) {
+        read_cam_control = false;
+        read_console_control = false;
+        read_joy_control = true;
     }
+    else if (z_button && read_joy_control) {
+        read_cam_control = true;
+        read_console_control = false;
+        read_joy_control = false;
+    }
+    // //if position commands should be read from console
+    // if (read_console_control) {
+    //     new_pos.x = curr_pos.x + fix2double(dx, 0);
+    //     new_pos.y = curr_pos.y + fix2double(dy, 0);
+    //     new_pos.z = curr_pos.z + fix2double(dz, 0);
+    //     if (z_button) {
+    //         read_cam_control = false;
+    //         read_console_control = false;
+    //         read_joy_control = true;
+    //     }
+    // }
+    // else if (read_joy_control) {
+    //     //get_joystick_inputs(&dx, &dy, &dz);
         
-    //alaways can control these from console
-    new_pos.z = curr_pos.z + fix2double(dz, 0);
-    new_pos.phi = deg2rad(rad2deg(curr_pos.phi) + fix2double(dw, 0));
-    new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + dwr);
-    gripper_pos = gripper_pos + fix2double(dg, 0);
+    //     new_pos.x = curr_pos.x + fix2double(j_dx, 0);
+    //     new_pos.y = curr_pos.y + fix2double(j_dy, 0);
+    //     new_pos.z = curr_pos.z + fix2double(j_dz, 0);
+    //     if (z_button) {
+    //         read_cam_control = true;
+    //         read_console_control = false;
+    //         read_joy_control = false;
+    //     }
+    // }
+        
+ 
 
     //camera input
     if (read_cam_control) {
@@ -164,7 +201,7 @@ void read_inputs() {
 
                 x_cam = x_cam / 2;
                 y_cam = y_cam / 2;
-                
+
                 if (val > POINT_TRACK_VAL_THRESHOLD) {
                     new_pos.x = curr_pos.x + x_cam;
                     new_pos.y = curr_pos.y + y_cam;
@@ -179,7 +216,25 @@ void read_inputs() {
     else {
         //we don't need the position info from the camera, so discard it to make room for new data
         multicore_fifo_drain();
+        if (read_console_control) {
+            new_pos.x = curr_pos.x + fix2double(dx, 0);
+            new_pos.y = curr_pos.y + fix2double(dy, 0);
+            new_pos.z = curr_pos.z + fix2double(dz, 0);
+        }
+        else if (read_joy_control) {
+            //get_joystick_inputs(&dx, &dy, &dz);
+            
+            new_pos.x = curr_pos.x + fix2double(j_dx, 0);
+            new_pos.y = curr_pos.y + fix2double(j_dy, 0);
+            new_pos.z = curr_pos.z + fix2double(j_dz, 0);
+        }
     }
+    
+    //always can control these from console
+    
+    new_pos.phi = deg2rad(rad2deg(curr_pos.phi) + fix2double(dw, 0));
+    new_pos.wr_rot = deg2rad(rad2deg(curr_pos.wr_rot) + dwr);
+    gripper_pos = gripper_pos + fix2double(dg, 0);
 }
 
 bool inverse_kinematics() {
@@ -342,7 +397,7 @@ void calibrate() {
 void setup() {
 
     //init I2C
-    i2c_init(I2C_INSTANCE, 100 * 1000);
+    i2c_init(I2C_INSTANCE, 400 * 1000);
     gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C);
     gpio_pull_up(I2C_SDA_PIN);
@@ -355,6 +410,10 @@ void setup() {
 
     //init joystick
     joystick_init(26, 27, 28);
+
+    nunchuck_device.addr = 0x52;
+    nunchuck_device.i2c = I2C_INSTANCE;
+    config_nunchuck(&nunchuck_device);
 
     //init IK and Servo maps
     joints[0].servo.channel = 0;
@@ -452,13 +511,13 @@ int main() {
     while (!stdio_usb_connected());
     printf("Version: %d\nPress any key to begin program...\n", PROJECT_VERSION);
 
-    char temp = getchar();
+    //char temp = getchar();
 
     //send a signal to the other core to start the image processing logic
     multicore_fifo_push_blocking(MULTICORE_FLAG_VALUE);
 
     //test function
-    calibrate();
+    //calibrate();
     //end test code
 
     while(1) {

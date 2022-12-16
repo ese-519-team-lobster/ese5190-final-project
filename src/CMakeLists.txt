@@ -23,6 +23,7 @@ target_sources(robot_arm PRIVATE
     devices/point_track.c
     motion_control/ik_calculations.c
     motion_control/joint_control.c
+    devices/nunchuck.c
 )
 
 #example PIO header generation
